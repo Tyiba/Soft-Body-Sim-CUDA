@@ -27,8 +27,8 @@ cudaGraphicsResource* cudaVboResource;
 PointMass* d_points;
 Spring* d_springs;
 
-const int N = 100;  // Number of points along one dimension
-const int M = 100;  // Number of points along the other dimension
+const int N = 10;  // Number of points along one dimension
+const int M = 10;  // Number of points along the other dimension
 constexpr float springRelaxDistance = 1.0f;
 constexpr float springCoeff = 10.0f;
 bool gravity = false;
