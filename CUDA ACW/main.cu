@@ -6,16 +6,17 @@
 
 #include "rendering.h"
 
+#pragma region Settings
 
-constexpr int WIDTH = 30;
-constexpr int HEIGHT = 30;
+constexpr int WIDTH = 5;
+constexpr int HEIGHT = 5;
 constexpr int NUM_PARTICLES = WIDTH * HEIGHT;
 constexpr float SCALE_FACTOR = 0.5f;
 constexpr float GRAVITY = -9.81f;
-constexpr float SPRING_REST_LENGTH = 0.50f; // Adjust based on grid scale
-constexpr float SPRING_STIFFNESS = 10.0f; // Adjust based on desired stiffness
+constexpr float SPRING_REST_LENGTH = 0.1f; // Adjust based on grid scale
+constexpr float SPRING_COEFFICIENT = 10.0f; // Adjust based on desired stiffness
 constexpr float DAMPING_COEFFICIENT = 0.03f;
-constexpr float EXTERNAL_MAGNITUDE = 0.2f; // External random force magnitude
+constexpr float EXTERNAL_MAGNITUDE = 0.1f; // External random force magnitude
 constexpr float MASS = 0.01f;
 constexpr float DELTA_TIME = 0.01f;
 bool gravityEnabled = false;
@@ -35,6 +36,9 @@ struct Grid {
     int* neighbors;
 };
 
+#pragma endregion
+
+#pragma region Operators for Float2
 
 __device__ float length(const float2& a) {
     return sqrtf(a.x * a.x + a.y * a.y);
@@ -68,6 +72,8 @@ __device__ void operator-=(float2& a, const float2& b) {
     a.x -= b.x;
     a.y -= b.y;
 }
+#pragma endregion
+
 
 __global__ void initializeGrid(Particle* particles, int width, int height, float scale) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -79,7 +85,9 @@ __global__ void initializeGrid(Particle* particles, int width, int height, float
         particles[idx].position = make_float2(xPos, yPos);
         particles[idx].velocity = make_float2(0.0f, 0.0f);
         particles[idx].force = make_float2(0.0f, 0.0f);
-        particles[idx].fixed = (y == 0); // Fix top row of particles
+        particles[idx].fixed = (y == height -1 && (x == 0 || x == width - 1)); // Fix top row of particles
+
+        printf("Particle %d: Position (%f, %f) Velocity (%f, %f)\n", idx, particles[idx].position.x, particles[idx].position.y, particles[idx].velocity.x, particles[idx].velocity.y);
     }
 }
 
@@ -123,7 +131,7 @@ __global__ void applyForces(Particle* particles, int* neighbors, int width, int 
 
                     float2 delta = neighbor.position - p.position;
                     float dist = length(delta);
-                    float magnitude = SPRING_STIFFNESS * (dist - SPRING_REST_LENGTH);
+                    float magnitude = SPRING_COEFFICIENT * (dist - SPRING_REST_LENGTH);
                     float2 force = magnitude * delta / dist;
                     totalForce += force;
                 }
