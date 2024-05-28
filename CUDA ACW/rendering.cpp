@@ -24,7 +24,7 @@ void main() {
 
 GLuint shaderProgram;
 
-void checkCompileErrors(unsigned int shader, std::string type) {
+void checkCompileErrors(unsigned int shader, const std::string& type) {
     int success;
     char infoLog[1024];
     if (type != "PROGRAM") {
@@ -91,7 +91,7 @@ void initializeOpenGL() {
     glDeleteShader(fragmentShader);
 }
 
-void renderGrid(const float2* positions, int width, int height) {
+void renderGrid(const float2* positions, int width, int height, float renderScale) {
     std::vector<float> lines;
     lines.reserve(width * height * 8);
 
@@ -99,21 +99,23 @@ void renderGrid(const float2* positions, int width, int height) {
         for (int x = 0; x < width; ++x) {
             int idx = y * width + x;
             float2 pos = positions[idx];
+            float scaledX = pos.x * renderScale;
+            float scaledY = pos.y * renderScale;
 
             if (x < width - 1) {
                 float2 right = positions[idx + 1];
-                lines.push_back(pos.x);
-                lines.push_back(pos.y);
-                lines.push_back(right.x);
-                lines.push_back(right.y);
+                lines.push_back(scaledX);
+                lines.push_back(scaledY);
+                lines.push_back(right.x * renderScale);
+                lines.push_back(right.y * renderScale);
             }
 
             if (y < height - 1) {
                 float2 down = positions[idx + width];
-                lines.push_back(pos.x);
-                lines.push_back(pos.y);
-                lines.push_back(down.x);
-                lines.push_back(down.y);
+                lines.push_back(scaledX);
+                lines.push_back(scaledY);
+                lines.push_back(down.x * renderScale);
+                lines.push_back(down.y * renderScale);
             }
         }
     }

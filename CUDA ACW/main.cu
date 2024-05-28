@@ -8,18 +8,18 @@
 
 #pragma region Settings
 
-constexpr int WIDTH = 5;
-constexpr int HEIGHT = 5;
+constexpr int WIDTH = 30; //oarticles x 
+constexpr int HEIGHT = 30; // particles y
 constexpr int NUM_PARTICLES = WIDTH * HEIGHT;
-constexpr float SCALE_FACTOR = 0.5f;
-constexpr float GRAVITY = -9.81f;
-constexpr float SPRING_REST_LENGTH = 0.1f; // Adjust based on grid scale
-constexpr float SPRING_COEFFICIENT = 10.0f; // Adjust based on desired stiffness
-constexpr float DAMPING_COEFFICIENT = 0.03f;
-constexpr float EXTERNAL_MAGNITUDE = 0.1f; // External random force magnitude
+constexpr float GRAVITY = -9.81f; // Standard gravity value
+constexpr float RENDERSCALE = 0.5f;
+constexpr float SPRING_REST_LENGTH = 1.0f / HEIGHT * 2.0f; // Distance between particles in the window
+constexpr float SPRING_COEFFICIENT = 25.0f; // Adjusted for window size
+constexpr float DAMPING_COEFFICIENT = 10.0f; // Adjusted for window size
+constexpr float EXTERNAL_MAGNITUDE = 0.01f; // Adjusted for window size
 constexpr float MASS = 0.01f;
 constexpr float DELTA_TIME = 0.01f;
-bool gravityEnabled = false;
+bool gravityEnabled = true;
 
 struct Particle {
     float2 position;
@@ -75,19 +75,17 @@ __device__ void operator-=(float2& a, const float2& b) {
 #pragma endregion
 
 
-__global__ void initializeGrid(Particle* particles, int width, int height, float scale) {
+__global__ void initializeGrid(Particle* particles, int width, int height) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x < width && y < height) {
         int idx = y * width + x;
-        float xPos = (x - width / 2.0f) * scale / width * 2.0f;
-        float yPos = (y - height / 2.0f) * scale / height * 2.0f;
+        float xPos = (x - width / 2.0f) / (width / 2.0f);
+        float yPos = (y - height / 2.0f) / (height / 2.0f);
         particles[idx].position = make_float2(xPos, yPos);
         particles[idx].velocity = make_float2(0.0f, 0.0f);
         particles[idx].force = make_float2(0.0f, 0.0f);
-        particles[idx].fixed = (y == height -1 && (x == 0 || x == width - 1)); // Fix top row of particles
-
-        printf("Particle %d: Position (%f, %f) Velocity (%f, %f)\n", idx, particles[idx].position.x, particles[idx].position.y, particles[idx].velocity.x, particles[idx].velocity.y);
+        particles[idx].fixed = (x == 0 && y == height - 1) || (x == width - 1 && y == height - 1); // Fix top row and corners
     }
 }
 
@@ -122,6 +120,7 @@ __global__ void applyForces(Particle* particles, int* neighbors, int width, int 
                 totalForce.y += GRAVITY * MASS;
 
             float2 currentVelocity = p.velocity;
+            p.oldposition = p.position;
 
             for (int i = 0; i < 4; ++i) {
                 int neighborIdx = neighbors[idx * 4 + i];
@@ -134,28 +133,36 @@ __global__ void applyForces(Particle* particles, int* neighbors, int width, int 
                     float magnitude = SPRING_COEFFICIENT * (dist - SPRING_REST_LENGTH);
                     float2 force = magnitude * delta / dist;
                     totalForce += force;
+
+                    atomicAdd(&neighbor.force.x, force.x);
+                    atomicAdd(&neighbor.force.y, force.y);
                 }
             }
 
             // Apply damping
-            float2 dampingForce = -DAMPING_COEFFICIENT * p.velocity;
+            float2 dampingForce = -DAMPING_COEFFICIENT * currentVelocity;
             totalForce += dampingForce;
 
             // Apply random external force
-            /*curandState state;
+            curandState state;
             curand_init(0, idx, 0, &state);
             float2 randomForce = make_float2(
                 curand_uniform(&state) * 2.0f - 1.0f,
                 curand_uniform(&state) * 2.0f - 1.0f
             ) * EXTERNAL_MAGNITUDE;
-            totalForce += randomForce;*/
+            //printf("Random State %f, %f, \n", randomForce.x, randomForce.y);
+            totalForce += randomForce;
 
             // Update particle force
-           // p.force = totalForce;
+            p.force = totalForce;
 
             float2 a = totalForce / MASS;
-            p.oldposition = p.position;
             p.position = p.position + currentVelocity * deltaTime + 0.5f * a * deltaTime * deltaTime;
+            p.velocity += (p.position - p.oldposition) * deltaTime;
+
+            // Reset force
+            p.force = make_float2(0.0f, 0.0f);
+
         }
     }
 }
@@ -174,7 +181,7 @@ __global__ void updateParticles(Particle* particles, int numParticles, float del
             p.force = make_float2(0.0f, 0.0f);
 
             // Debugging: Print updated positions and velocities
-           // printf("Particle %d: Position (%f, %f) Velocity (%f, %f)\n", idx, p.position.x, p.position.y, p.velocity.x, p.velocity.y);
+           //printf("Particle %d: Position (%f, %f) Velocity (%f, %f)\n", idx, p.position.x, p.position.y, p.velocity.x, p.velocity.y);
         }
     }
 }
@@ -191,7 +198,7 @@ void initializeSimulation() {
 
     dim3 threadsPerBlock(16, 16);
     dim3 numBlocks((WIDTH + threadsPerBlock.x - 1) / threadsPerBlock.x, (HEIGHT + threadsPerBlock.y - 1) / threadsPerBlock.y);
-    initializeGrid << <numBlocks, threadsPerBlock >> > (d_particles, WIDTH, HEIGHT, SCALE_FACTOR);
+    initializeGrid << <numBlocks, threadsPerBlock >> > (d_particles, WIDTH, HEIGHT);
     cudaDeviceSynchronize();
 
     calculateNeighbors << <numBlocks, threadsPerBlock >> > (d_neighbors, WIDTH, HEIGHT);
@@ -205,12 +212,12 @@ void updateSimulation() {
     applyForces << <numBlocksParticles, numThreads >> > (d_particles, d_neighbors, WIDTH, HEIGHT, DELTA_TIME, gravityEnabled);
     cudaDeviceSynchronize();
 
-    updateParticles << <numBlocksParticles, numThreads >> > (d_particles, NUM_PARTICLES, DELTA_TIME);
-    cudaDeviceSynchronize();
+    //updateParticles << <numBlocksParticles, numThreads >> > (d_particles, NUM_PARTICLES, DELTA_TIME);
+    //cudaDeviceSynchronize();
 }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (action == GLFW_PRESS && (key == GLFW_KEY_G  )) {
+    if (action == GLFW_PRESS && (key == GLFW_KEY_G)) {
         gravityEnabled = !gravityEnabled;
         printf("Gravity toggled: %s\n", gravityEnabled ? "On" : "Off");
     }
@@ -224,7 +231,6 @@ int main() {
     GLFWwindow* window = glfwGetCurrentContext();
     glfwSetKeyCallback(window, keyCallback);
 
-   
 
     while (!glfwWindowShouldClose(window)) {
         updateSimulation();
@@ -236,7 +242,7 @@ int main() {
             positions[i] = h_particles[i].position;
         }
 
-        renderGrid(positions.data(), WIDTH, HEIGHT);
+        renderGrid(positions.data(), WIDTH, HEIGHT, RENDERSCALE);
         glfwPollEvents();
     }
 
