@@ -1,8 +1,10 @@
+#include <chrono>
 #include <glad.h>
 #include <glfw3.h>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 #include <vector>
+#include <windows.h>
 
 #include "rendering.h"
 
@@ -205,12 +207,25 @@ void initializeSimulation() {
     cudaDeviceSynchronize();
 }
 
+cudaEvent_t start, stop;
+float totalTime = 0.0f;
+int iterations = 0;
+
 void updateSimulation() {
     int numThreads = 256;
     int numBlocksParticles = (NUM_PARTICLES + numThreads - 1) / numThreads;
 
+
+    cudaEventRecord(start);
     applyForces << <numBlocksParticles, numThreads >> > (d_particles, d_neighbors, WIDTH, HEIGHT, DELTA_TIME, gravityEnabled);
     cudaDeviceSynchronize();
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    totalTime += milliseconds;
+    iterations++;
 
     //updateParticles << <numBlocksParticles, numThreads >> > (d_particles, NUM_PARTICLES, DELTA_TIME);
     //cudaDeviceSynchronize();
@@ -231,8 +246,15 @@ int main() {
     GLFWwindow* window = glfwGetCurrentContext();
     glfwSetKeyCallback(window, keyCallback);
 
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
+    auto startTime = std::chrono::high_resolution_clock::now();
     while (!glfwWindowShouldClose(window)) {
+        auto currentTIme = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float> elapsedTime = currentTIme - startTime;
+        if (elapsedTime.count() >= 10.0f) break;
+
         updateSimulation();
 
         cudaMemcpy(h_particles, d_particles, NUM_PARTICLES * sizeof(Particle), cudaMemcpyDeviceToHost);
@@ -245,6 +267,10 @@ int main() {
         renderGrid(positions.data(), WIDTH, HEIGHT, RENDERSCALE);
         glfwPollEvents();
     }
+
+    //average times
+    float average = totalTime / iterations;
+    printf("Average Time for %d x %d grid: %f ms \n", WIDTH, HEIGHT, average);
 
     cudaFree(d_particles);
     cudaFree(d_neighbors);
