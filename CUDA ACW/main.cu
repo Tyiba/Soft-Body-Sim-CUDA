@@ -10,8 +10,8 @@
 
 #pragma region Settings
 
-constexpr int WIDTH = 30; //oarticles x 
-constexpr int HEIGHT = 30; // particles y
+constexpr int WIDTH = 500; //oarticles x 
+constexpr int HEIGHT = 500; // particles y
 constexpr int NUM_PARTICLES = WIDTH * HEIGHT;
 constexpr float GRAVITY = -9.81f; // Standard gravity value
 constexpr float RENDERSCALE = 0.5f;
@@ -25,7 +25,6 @@ bool gravityEnabled = true;
 
 struct Particle {
     float2 position;
-    float2 oldposition;
     float2 velocity;
     float2 force;
     bool fixed;
@@ -122,7 +121,7 @@ __global__ void applyForces(Particle* particles, int* neighbors, int width, int 
                 totalForce.y += GRAVITY * MASS;
 
             float2 currentVelocity = p.velocity;
-            p.oldposition = p.position;
+            float2 oldposition = p.position;
 
             for (int i = 0; i < 4; ++i) {
                 int neighborIdx = neighbors[idx * 4 + i];
@@ -144,7 +143,6 @@ __global__ void applyForces(Particle* particles, int* neighbors, int width, int 
             // Apply damping
             float2 dampingForce = -DAMPING_COEFFICIENT * currentVelocity;
             totalForce += dampingForce;
-
             // Apply random external force
             curandState state;
             curand_init(0, idx, 0, &state);
@@ -154,14 +152,12 @@ __global__ void applyForces(Particle* particles, int* neighbors, int width, int 
             ) * EXTERNAL_MAGNITUDE;
             //printf("Random State %f, %f, \n", randomForce.x, randomForce.y);
             totalForce += randomForce;
-
             // Update particle force
             p.force = totalForce;
-
             float2 a = totalForce / MASS;
+            //Update Point pos and vel
             p.position = p.position + currentVelocity * deltaTime + 0.5f * a * deltaTime * deltaTime;
-            p.velocity += (p.position - p.oldposition) * deltaTime;
-
+            p.velocity += (p.position - oldposition) * deltaTime;
             // Reset force
             p.force = make_float2(0.0f, 0.0f);
 
@@ -171,13 +167,14 @@ __global__ void applyForces(Particle* particles, int* neighbors, int width, int 
 
 
 
+/*
 __global__ void updateParticles(Particle* particles, int numParticles, float deltaTime) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < numParticles) {
         Particle& p = particles[idx];
         if (!p.fixed) {
                         // Update velocity
-            p.velocity += ( p.position - p.oldposition ) * deltaTime;
+            p.velocity += ( p.position - oldposition ) * deltaTime;
 
             // Reset force
             p.force = make_float2(0.0f, 0.0f);
@@ -187,6 +184,7 @@ __global__ void updateParticles(Particle* particles, int numParticles, float del
         }
     }
 }
+*/
 
 
 
@@ -210,6 +208,7 @@ void initializeSimulation() {
 cudaEvent_t start, stop;
 float totalTime = 0.0f;
 int iterations = 0;
+float milliseconds = 0;
 
 void updateSimulation() {
     int numThreads = 256;
@@ -222,7 +221,7 @@ void updateSimulation() {
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
-    float milliseconds = 0;
+    
     cudaEventElapsedTime(&milliseconds, start, stop);
     totalTime += milliseconds;
     iterations++;
@@ -268,9 +267,10 @@ int main() {
         glfwPollEvents();
     }
 
-    //average times
     float average = totalTime / iterations;
-    printf("Average Time for %d x %d grid: %f ms \n", WIDTH, HEIGHT, average);
+    printf("Average Time for %d x %d grid: %f µs \n", WIDTH, HEIGHT, average * 1000.0f);
+
+    //average times
 
     cudaFree(d_particles);
     cudaFree(d_neighbors);

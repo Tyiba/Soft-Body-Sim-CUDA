@@ -42,12 +42,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(SolutionDir)External Files\Include\KHR;$(SolutionDir)External Files\Include\GLFW;$(SolutionDir)External Files\Include\glad;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)External Files\Lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)External Files\Include\KHR;$(SolutionDir)External Files\Include\GLFW;$(SolutionDir)External Files\Include\glad;$(SolutionDir)External Files\Include\KHR;$(SolutionDir)External Files\Include\GLFW;$(SolutionDir)External Files\Include\glad;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)External Files\Lib;$(SolutionDir)External Files\Lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>D:\CUDA\ACW\CUDA Cloth Sim\CUDA ACW\External Files\Include\KHR;D:\CUDA\ACW\CUDA Cloth Sim\CUDA ACW\External Files\Include\GLFW;D:\CUDA\ACW\CUDA Cloth Sim\CUDA ACW\External Files\Include\glad;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\CUDA\ACW\CUDA Cloth Sim\CUDA ACW\External Files\Lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)External Files\Include\KHR;$(SolutionDir)External Files\Include\GLFW;$(SolutionDir)External Files\Include\glad;D:\CUDA\ACW\CUDA Cloth Sim\CUDA ACW\External Files\Include\KHR;D:\CUDA\ACW\CUDA Cloth Sim\CUDA ACW\External Files\Include\GLFW;D:\CUDA\ACW\CUDA Cloth Sim\CUDA ACW\External Files\Include\glad;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)External Files\Lib;D:\CUDA\ACW\CUDA Cloth Sim\CUDA ACW\External Files\Lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
